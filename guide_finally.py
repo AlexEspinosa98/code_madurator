@@ -353,6 +353,7 @@ class MainWindow(QMainWindow):
             boton = self.sender()
             self.ui.label_12.setText(f"{boton.text().lower().capitalize()} PPM")
             self.ui.label_monitor_gas.setText(f"{boton.text().lower().capitalize()} PPM")
+            self.refresh_dynamic_displays()
                 #stop 8. init 7
                 
     # init all display with database
@@ -370,15 +371,7 @@ class MainWindow(QMainWindow):
         # self.ui.lcd_monitor_.display(self.counters["timer"].setpoint)
 
         # Dinámico: determinar si etileno o ozono está seleccionado
-        if self.ui.button_ethylene.isChecked():
-            dynamic_key = "ethylene"
-        elif self.ui.button_ozone.isChecked():
-            dynamic_key = "ozone"
-        else:
-            dynamic_key = "ethylene"  # Por defecto etileno
-
-        self.ui.lcd_config_gas.display(self.counters[dynamic_key].value)
-        self.ui.lcd_monitor_gas.display(self.counters[dynamic_key].setpoint)
+        self.refresh_dynamic_displays()
 
     # button configuration and counter
     def change_counter(self, key, delta, lcd_widget):
@@ -424,6 +417,15 @@ class MainWindow(QMainWindow):
             return "ozone"
         else:
             return None
+
+    def refresh_dynamic_displays(self):
+        """Actualiza los LCDs de gas según el radio seleccionado."""
+        key = self.get_active_dynamic_key()
+        if key is None:
+            return
+        counter = self.counters[key]
+        self.ui.lcd_config_gas.display(counter.value)
+        self.ui.lcd_monitor_gas.display(counter.setpoint)
     
     def set_dynamic_counter(self):
         key = self.get_active_dynamic_key()
@@ -431,6 +433,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Atención", "No hay un modo seleccionado.")
             return
         self.set_counter(key, self.ui.lcd_monitor_gas)
+        self.refresh_dynamic_displays()
 
     def reset_dynamic_counter(self):
         key = self.get_active_dynamic_key()
@@ -438,6 +441,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Atención", "No hay un modo seleccionado.")
             return
         self.reset_counter(key, self.ui.lcd_config_gas)
+        self.refresh_dynamic_displays()
     # ------ button dynamic 
     
     def finish_processing(self):
