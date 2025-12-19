@@ -498,9 +498,9 @@ class MainWindow(QMainWindow):
             self.ui.up_gas_4, self.ui.down_gas_4, self.ui.set_gas_4, self.ui.reset_gas_4
         ]:
             button.setEnabled(False)
-        minutos = self.counters["timer"].setpoint
-        if minutos <= 0:
-            QMessageBox.warning(self, "Atención", "El tiempo configurado debe ser mayor a 0 minutos.")
+        horas = self.counters["timer"].setpoint
+        if horas <= 0:
+            QMessageBox.warning(self, "Atención", "El tiempo configurado debe ser mayor a 0 horas.")
             return
 
         # Hora de inicio
@@ -508,7 +508,7 @@ class MainWindow(QMainWindow):
         self.ui.label_hour_init.setText(start_time.toString("dd/MM HH:mm"))
 
         # Hora de fin
-        finish_time = start_time.addSecs(int(minutos) * 60)
+        finish_time = start_time.addSecs(int(horas) * 3600)
         self.ui.label_hour_finish.setText(finish_time.toString("dd/MM HH:mm"))
 
         # Programar auto-stop
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
         self.process_timer = QTimer(self)
         self.process_timer.setSingleShot(True)
         self.process_timer.timeout.connect(self.finish_processing)
-        self.process_timer.start(int(minutos) * 60 * 1000)  # en milisegundos
+        self.process_timer.start(int(horas) * 3600 * 1000)  # en milisegundos
 
     def update_data(self, data):
         # Validar cada dato
