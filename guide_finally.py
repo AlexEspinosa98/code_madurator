@@ -64,31 +64,21 @@ lock = threading.Lock()
 motor_stop_event = threading.Event()
 
 # --- Lógica de motor paso a paso (basado en repositoy_madurator/motor.py) ---
-def calculate_steps(flow_value):
-    """Relación lineal usada en motor.py para convertir caudal a pasos."""
-    return int(-4.36 + 1758.17 * flow_value)
-
 def set_direction_clockwise():
     GPIO.output(MOTOR_DIR, GPIO.LOW)  # mismo sentido que motor.py
 
-def run_stepper_steps(num_steps, delay=STEP_DELAY):
-    """Ejecuta una cantidad de pasos con posibilidad de detenerse."""
+def run_stepper_continuous(delay=STEP_DELAY):
+    """Gira el motor continuamente hasta que se active motor_stop_event."""
     set_direction_clockwise()
-    for _ in range(num_steps):
-        if motor_stop_event.is_set():
-            break
+    while not motor_stop_event.is_set():
         GPIO.output(MOTOR_STEP, True)
         time.sleep(delay)
         GPIO.output(MOTOR_STEP, False)
         time.sleep(delay)
 
-def start_stepper_for_flow(flow_value):
-    """Lanza el motor en un hilo en función del caudal configurado."""
-    steps = max(0, calculate_steps(flow_value))
-    if steps == 0:
-        return None
+def start_stepper_continuous():
     motor_stop_event.clear()
-    t = threading.Thread(target=run_stepper_steps, args=(steps,), daemon=True)
+    t = threading.Thread(target=run_stepper_continuous, daemon=True)
     t.start()
     return t
 
@@ -218,7 +208,6 @@ class MainWindow(QMainWindow):
         # Init Storage
         self.storage = CounterStorage()
         self.stepper_thread = None  # hilo actual del motor
-        self.current_flow_steps = 0
 
         # init all counts
         self.counters = {
@@ -530,10 +519,8 @@ class MainWindow(QMainWindow):
             GPIO.output(23, GPIO.HIGH)  # Encender con lógica HIGH
             GPIO.output(18, GPIO.LOW)   # Encender con lógica LOW
             self.ethylene_activo = True
-            # Iniciar motor según el caudal configurado SOLO para etileno
-            flow_value = self.counters["flow"].setpoint
-            self.current_flow_steps = calculate_steps(flow_value)
-            self.stepper_thread = start_stepper_for_flow(flow_value)
+            # Iniciar motor en giro continuo SOLO para etileno
+            self.stepper_thread = start_stepper_continuous()
         
         self.monitoreo = True
         
