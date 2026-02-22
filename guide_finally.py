@@ -634,22 +634,22 @@ def read_pt100():
             # Log en consola siempre para verificar lectura PT100/PT1000
             print(f"[PT100] Temp: {temp_actual:.2f} °C  Res: {resistance:.2f} Ω")
 
-                # --- Nueva lógica para etileno ---
-                if window.ethylene_activo:  # Solo si etileno está activo
-                    if temp_actual >= MAX_TEMP_ETHYLENE and window.ethylene_activo:
-                        # Apagar etileno
-                        GPIO.output(23, GPIO.LOW)
-                        GPIO.output(18, GPIO.HIGH)
-                        window.ethylene_activo = False
-                        print(f"⚠️ Etileno apagado por temperatura alta ({temp_actual:.2f} °C)")
+            # --- Nueva lógica para etileno ---
+            if window.ethylene_activo:  # Solo si etileno está activo
+                if temp_actual >= MAX_TEMP_ETHYLENE and window.ethylene_activo:
+                    # Apagar etileno
+                    GPIO.output(23, GPIO.LOW)
+                    GPIO.output(18, GPIO.HIGH)
+                    window.ethylene_activo = False
+                    print(f"⚠️ Etileno apagado por temperatura alta ({temp_actual:.2f} °C)")
 
-                    elif temp_actual <= TEMP_RESTART and window.ethylene_activo:
-                        # Encender etileno nuevamente
-                        GPIO.output(23, GPIO.HIGH)
-                        GPIO.output(18, GPIO.LOW)
-                        window.ethylene_activo = True
-                        print(f"✅ Etileno encendido por temperatura baja ({temp_actual:.2f} °C)")
-                    print(f'Temperatura: {temp_actual:.2f} °C, Resistencia: {resistance:.2f} ohms')
+                elif temp_actual <= TEMP_RESTART and window.ethylene_activo:
+                    # Encender etileno nuevamente
+                    GPIO.output(23, GPIO.HIGH)
+                    GPIO.output(18, GPIO.LOW)
+                    window.ethylene_activo = True
+                    print(f"✅ Etileno encendido por temperatura baja ({temp_actual:.2f} °C)")
+                print(f'Temperatura: {temp_actual:.2f} °C, Resistencia: {resistance:.2f} ohms')
 
         except Exception as e:
             print(f'Error al leer el sensor PT100: {e}')
