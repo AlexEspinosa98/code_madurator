@@ -17,22 +17,31 @@ from counter_module import Counter
 from storage import CounterStorage, DataStorage
 from serial_parser import SerialDataParser
 
-# Configuración del pin para PWM
-led_pin = 19
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(led_pin, GPIO.OUT)
-pwm = GPIO.PWM(led_pin, 500)
+
+# Configuración del pin para PWM (se mueve a 21 para liberar 16/8 al motor)
+PWM_PIN = 21
+GPIO.setup(PWM_PIN, GPIO.OUT)
+pwm = GPIO.PWM(PWM_PIN, 500)
 pwm.start(0)  # Iniciar con ciclo de trabajo de 0%
 
-#GPIO 16 to ozono
-GPIO.setup(16, GPIO.OUT)
-GPIO.output(16,GPIO.HIGH)
+# Pines para motor paso a paso (DIR/STEP)
+MOTOR_DIR = 16  # solicitado: usar 16
+MOTOR_STEP = 8  # solicitado: usar 8
+GPIO.setup(MOTOR_DIR, GPIO.OUT)
+GPIO.setup(MOTOR_STEP, GPIO.OUT)
+STEP_DELAY = 0.000408  # mismo retardo que motor.py
+
+#GPIO 19 to ozono (antes era 16, se mueve para liberar DIR del motor)
+GPIO.setup(19, GPIO.OUT)
+GPIO.output(19,GPIO.HIGH)
 GPIO.setup(12, GPIO.OUT)
 GPIO.output(12,GPIO.LOW)
 
-# GPIO AVANICO INTERNO
-GPIO.setup(8, GPIO.OUT)
-GPIO.output(8,GPIO.HIGH)
+# GPIO VENTILADOR INTERNO (antes pin 8, ahora 20 para no chocar con STEP)
+FAN_PIN = 20
+GPIO.setup(FAN_PIN, GPIO.OUT)
+GPIO.output(FAN_PIN,GPIO.HIGH)
 
 # GPIO TO ETHYLENO
 # Pines para Etileno
@@ -52,6 +61,36 @@ temp_actual = 0
 duty_cycle = 0
 stop_threads = False  # Bandera para detener los hilos
 lock = threading.Lock()
+motor_stop_event = threading.Event()
+
+# --- Lógica de motor paso a paso (basado en repositoy_madurator/motor.py) ---
+def calculate_steps(flow_value):
+    """Relación lineal usada en motor.py para convertir caudal a pasos."""
+    return int(-4.36 + 1758.17 * flow_value)
+
+def set_direction_clockwise():
+    GPIO.output(MOTOR_DIR, GPIO.LOW)  # mismo sentido que motor.py
+
+def run_stepper_steps(num_steps, delay=STEP_DELAY):
+    """Ejecuta una cantidad de pasos con posibilidad de detenerse."""
+    set_direction_clockwise()
+    for _ in range(num_steps):
+        if motor_stop_event.is_set():
+            break
+        GPIO.output(MOTOR_STEP, True)
+        time.sleep(delay)
+        GPIO.output(MOTOR_STEP, False)
+        time.sleep(delay)
+
+def start_stepper_for_flow(flow_value):
+    """Lanza el motor en un hilo en función del caudal configurado."""
+    steps = max(0, calculate_steps(flow_value))
+    if steps == 0:
+        return None
+    motor_stop_event.clear()
+    t = threading.Thread(target=run_stepper_steps, args=(steps,), daemon=True)
+    t.start()
+    return t
 
 # Función para abrir el puerto serial
 def open_serial_port():
@@ -178,7 +217,9 @@ class MainWindow(QMainWindow):
         
         # Init Storage
         self.storage = CounterStorage()
-        
+        self.stepper_thread = None  # hilo actual del motor
+        self.current_flow_steps = 0
+
         # init all counts
         self.counters = {
             "flow": Counter(
@@ -448,7 +489,8 @@ class MainWindow(QMainWindow):
         self.monitoreo = False
         self.ozono_Activo = False
         self.ethylene_activo = False
-        GPIO.output(16,GPIO.HIGH)
+        motor_stop_event.set()  # detener motor si estaba en marcha
+        GPIO.output(19,GPIO.HIGH)
         GPIO.output(12,GPIO.LOW)
         
         #stop etileno
@@ -479,13 +521,19 @@ class MainWindow(QMainWindow):
     def init_processing(self):
         key = self.get_active_dynamic_key()
         if key == 'ozone':
+            motor_stop_event.set()  # no debe girar motor en modo ozono
             GPIO.output(12, GPIO.HIGH)
-            GPIO.output(16, GPIO.LOW)
+            GPIO.output(19, GPIO.LOW)
             self.ozono_activo = True
         elif key == 'ethylene':
+            motor_stop_event.clear()
             GPIO.output(23, GPIO.HIGH)  # Encender con lógica HIGH
             GPIO.output(18, GPIO.LOW)   # Encender con lógica LOW
             self.ethylene_activo = True
+            # Iniciar motor según el caudal configurado SOLO para etileno
+            flow_value = self.counters["flow"].setpoint
+            self.current_flow_steps = calculate_steps(flow_value)
+            self.stepper_thread = start_stepper_for_flow(flow_value)
         
         self.monitoreo = True
         
@@ -546,11 +594,11 @@ class MainWindow(QMainWindow):
                 return
             if actual > setpoint and self.ozono_activo:
                 GPIO.output(12, GPIO.LOW)
-                GPIO.output(16, GPIO.HIGH)
+                GPIO.output(19, GPIO.HIGH)
                 self.ozono_activo = False
             elif actual < setpoint * 0.75 and not self.ozono_activo:
                 GPIO.output(12, GPIO.HIGH)
-                GPIO.output(16, GPIO.LOW)
+                GPIO.output(19, GPIO.LOW)
                 self.ozono_activo = True
 
         if self.monitoreo and self.get_active_dynamic_key() == "ethylene":
@@ -573,6 +621,7 @@ class MainWindow(QMainWindow):
         """Este método se llama cuando se cierra la ventana."""
         global stop_threads
         stop_threads = True  # Indicar a los hilos que deben detenerse
+        motor_stop_event.set()
         print("Cerrando la aplicación...")
         event.accept()  # Aceptar el evento de cierre
 
@@ -634,10 +683,10 @@ def temperature_monitor():
         print(f"Temperatura actual: {temp:.2f}°C")
 
         if temp >= TEMP_THRESHOLD:
-            GPIO.output(8, GPIO.HIGH)  # Encender ventilador
+            GPIO.output(FAN_PIN, GPIO.HIGH)  # Encender ventilador
             print("⚠️ Temperatura alta: ventilador encendido")
         else:
-            GPIO.output(8, GPIO.LOW)  # Apagar ventilador
+            GPIO.output(FAN_PIN, GPIO.LOW)  # Apagar ventilador
             print("✅ Temperatura normal: ventilador apagado")
 
         time.sleep(5)
