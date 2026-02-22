@@ -67,8 +67,8 @@ motor_stop_event = threading.Event()
 
 # --- Lógica de motor paso a paso (basado en repositoy_madurator/motor.py) ---
 def set_direction_clockwise():
-    # Invertido: ahora HIGH fija el sentido horario
-    GPIO.output(MOTOR_DIR, GPIO.HIGH)
+    # Lógica original: LOW fija el sentido horario
+    GPIO.output(MOTOR_DIR, GPIO.LOW)
 
 def run_stepper_continuous(delay=STEP_DELAY):
     """Gira el motor continuamente hasta que se active motor_stop_event."""
