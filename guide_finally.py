@@ -26,8 +26,9 @@ pwm = GPIO.PWM(PWM_PIN, 500)
 pwm.start(0)  # Iniciar con ciclo de trabajo de 0%
 
 # Pines para motor paso a paso (DIR/STEP)
-MOTOR_DIR = 16  # solicitado: usar 16
-MOTOR_STEP = 8  # solicitado: usar 8
+# DIR (giro) = 16, STEP (pulso) = 8
+MOTOR_DIR = 16
+MOTOR_STEP = 8
 GPIO.setup(MOTOR_DIR, GPIO.OUT)
 GPIO.setup(MOTOR_STEP, GPIO.OUT)
 STEP_DELAY = 0.000408  # mismo retardo que motor.py
@@ -65,15 +66,17 @@ motor_stop_event = threading.Event()
 
 # --- Lógica de motor paso a paso (basado en repositoy_madurator/motor.py) ---
 def set_direction_clockwise():
-    GPIO.output(MOTOR_DIR, GPIO.LOW)  # mismo sentido que motor.py
+    # Invertido: ahora HIGH fija el sentido
+    GPIO.output(MOTOR_DIR, GPIO.HIGH)
 
 def run_stepper_continuous(delay=STEP_DELAY):
     """Gira el motor continuamente hasta que se active motor_stop_event."""
     set_direction_clockwise()
     while not motor_stop_event.is_set():
-        GPIO.output(MOTOR_STEP, True)
-        time.sleep(delay)
+        # Invertido: pulso LOW -> HIGH
         GPIO.output(MOTOR_STEP, False)
+        time.sleep(delay)
+        GPIO.output(MOTOR_STEP, True)
         time.sleep(delay)
 
 def start_stepper_continuous():
