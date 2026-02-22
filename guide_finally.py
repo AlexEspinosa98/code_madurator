@@ -25,21 +25,22 @@ GPIO.setup(PWM_PIN, GPIO.OUT)
 pwm = GPIO.PWM(PWM_PIN, 500)
 pwm.start(0)  # Iniciar con ciclo de trabajo de 0%
 
-# Pines para motor paso a paso (DIR/STEP)
-# DIR (giro) = 16, STEP (pulso) = 8
-MOTOR_DIR = 16
-MOTOR_STEP = 8
+# Pines para motor paso a paso (DIR/STEP) y habilitación
+# Se mueve STEP al GPIO16 (porque el 8 irá a GND); DIR pasa a un pin libre.
+MOTOR_DIR = 26      # nuevo pin para dirección
+MOTOR_STEP = 16     # STEP ahora en 16
+MOTOR_ENABLE = 19
 GPIO.setup(MOTOR_DIR, GPIO.OUT)
 GPIO.setup(MOTOR_STEP, GPIO.OUT)
+GPIO.setup(MOTOR_ENABLE, GPIO.OUT)
+GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # motor apagado por defecto
 STEP_DELAY = 0.000408  # mismo retardo que motor.py
 
-#GPIO 19 to ozono (antes era 16, se mueve para liberar DIR del motor)
-GPIO.setup(19, GPIO.OUT)
-GPIO.output(19,GPIO.HIGH)
+#GPIO 12 to ozono (19 queda como enable de motor)
 GPIO.setup(12, GPIO.OUT)
 GPIO.output(12,GPIO.LOW)
 
-# GPIO VENTILADOR INTERNO (antes pin 8, ahora 20 para no chocar con STEP)
+# GPIO VENTILADOR INTERNO
 FAN_PIN = 20
 GPIO.setup(FAN_PIN, GPIO.OUT)
 GPIO.output(FAN_PIN,GPIO.HIGH)
@@ -66,21 +67,21 @@ motor_stop_event = threading.Event()
 
 # --- Lógica de motor paso a paso (basado en repositoy_madurator/motor.py) ---
 def set_direction_clockwise():
-    # Invertido: ahora HIGH fija el sentido
-    GPIO.output(MOTOR_DIR, GPIO.HIGH)
+    # Lógica original: LOW fija el sentido horario
+    GPIO.output(MOTOR_DIR, GPIO.LOW)
 
 def run_stepper_continuous(delay=STEP_DELAY):
     """Gira el motor continuamente hasta que se active motor_stop_event."""
     set_direction_clockwise()
     while not motor_stop_event.is_set():
-        # Invertido: pulso LOW -> HIGH
-        GPIO.output(MOTOR_STEP, False)
-        time.sleep(delay)
         GPIO.output(MOTOR_STEP, True)
+        time.sleep(delay)
+        GPIO.output(MOTOR_STEP, False)
         time.sleep(delay)
 
 def start_stepper_continuous():
     motor_stop_event.clear()
+    GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # habilitar motor
     t = threading.Thread(target=run_stepper_continuous, daemon=True)
     t.start()
     return t
@@ -482,7 +483,7 @@ class MainWindow(QMainWindow):
         self.ozono_Activo = False
         self.ethylene_activo = False
         motor_stop_event.set()  # detener motor si estaba en marcha
-        GPIO.output(19,GPIO.HIGH)
+        GPIO.output(MOTOR_ENABLE, GPIO.LOW)
         GPIO.output(12,GPIO.LOW)
         
         #stop etileno
@@ -515,7 +516,7 @@ class MainWindow(QMainWindow):
         if key == 'ozone':
             motor_stop_event.set()  # no debe girar motor en modo ozono
             GPIO.output(12, GPIO.HIGH)
-            GPIO.output(19, GPIO.LOW)
+            GPIO.output(MOTOR_ENABLE, GPIO.LOW)
             self.ozono_activo = True
         elif key == 'ethylene':
             motor_stop_event.clear()
@@ -584,11 +585,11 @@ class MainWindow(QMainWindow):
                 return
             if actual > setpoint and self.ozono_activo:
                 GPIO.output(12, GPIO.LOW)
-                GPIO.output(19, GPIO.HIGH)
+                GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # motor off
                 self.ozono_activo = False
             elif actual < setpoint * 0.75 and not self.ozono_activo:
                 GPIO.output(12, GPIO.HIGH)
-                GPIO.output(19, GPIO.LOW)
+                GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # mantener motor off en ozono
                 self.ozono_activo = True
 
         if self.monitoreo and self.get_active_dynamic_key() == "ethylene":
@@ -607,13 +608,14 @@ class MainWindow(QMainWindow):
 
         
 
-    def closeEvent(self, event):
-        """Este método se llama cuando se cierra la ventana."""
-        global stop_threads
-        stop_threads = True  # Indicar a los hilos que deben detenerse
-        motor_stop_event.set()
-        print("Cerrando la aplicación...")
-        event.accept()  # Aceptar el evento de cierre
+def closeEvent(self, event):
+    """Este método se llama cuando se cierra la ventana."""
+    global stop_threads
+    stop_threads = True  # Indicar a los hilos que deben detenerse
+    motor_stop_event.set()
+    GPIO.output(MOTOR_ENABLE, GPIO.LOW)
+    print("Cerrando la aplicación...")
+    event.accept()  # Aceptar el evento de cierre
 
 
 # Función para leer la temperatura del PT100
