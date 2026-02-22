@@ -26,9 +26,9 @@ pwm = GPIO.PWM(PWM_PIN, 500)
 pwm.start(0)  # Iniciar con ciclo de trabajo de 0%
 
 # Pines para motor paso a paso (DIR/STEP) y habilitación
-# DIR (giro) = 16, STEP (pulso) = 8, ENABLE = 19
+# DIR (giro) = 16, STEP (pulso) = 7, ENABLE = 19
 MOTOR_DIR = 16
-MOTOR_STEP = 8
+MOTOR_STEP = 7
 MOTOR_ENABLE = 19
 GPIO.setup(MOTOR_DIR, GPIO.OUT)
 GPIO.setup(MOTOR_STEP, GPIO.OUT)
