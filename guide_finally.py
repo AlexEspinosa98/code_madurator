@@ -33,7 +33,7 @@ MOTOR_ENABLE = 19
 GPIO.setup(MOTOR_DIR, GPIO.OUT)
 GPIO.setup(MOTOR_STEP, GPIO.OUT)
 GPIO.setup(MOTOR_ENABLE, GPIO.OUT)
-GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # motor apagado por defecto
+GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # motor apagado por defecto (activo en LOW)
 STEP_DELAY = 0.000408  # mismo retardo que motor.py
 
 #GPIO 12 to ozono (19 queda como enable de motor)
@@ -81,7 +81,7 @@ def run_stepper_continuous(delay=STEP_DELAY):
 
 def start_stepper_continuous():
     motor_stop_event.clear()
-    GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # habilitar motor
+    GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # habilitar motor (activa en LOW)
     t = threading.Thread(target=run_stepper_continuous, daemon=True)
     t.start()
     return t
@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         self.ozono_Activo = False
         self.ethylene_activo = False
         motor_stop_event.set()  # detener motor si estaba en marcha
-        GPIO.output(MOTOR_ENABLE, GPIO.LOW)
+        GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitar (activo en LOW)
         GPIO.output(12,GPIO.LOW)
         
         #stop etileno
@@ -516,7 +516,7 @@ class MainWindow(QMainWindow):
         if key == 'ozone':
             motor_stop_event.set()  # no debe girar motor en modo ozono
             GPIO.output(12, GPIO.HIGH)
-            GPIO.output(MOTOR_ENABLE, GPIO.LOW)
+            GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitado (activo en LOW)
             self.ozono_activo = True
         elif key == 'ethylene':
             motor_stop_event.clear()
@@ -585,11 +585,11 @@ class MainWindow(QMainWindow):
                 return
             if actual > setpoint and self.ozono_activo:
                 GPIO.output(12, GPIO.LOW)
-                GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # motor off
+                GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # motor off (activo en LOW)
                 self.ozono_activo = False
             elif actual < setpoint * 0.75 and not self.ozono_activo:
                 GPIO.output(12, GPIO.HIGH)
-                GPIO.output(MOTOR_ENABLE, GPIO.LOW)  # mantener motor off en ozono
+                GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # mantener motor off en ozono
                 self.ozono_activo = True
 
         if self.monitoreo and self.get_active_dynamic_key() == "ethylene":
