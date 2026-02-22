@@ -631,6 +631,8 @@ def read_pt100():
             resistance = sensor.resistance
             with lock:
                 temp_actual = temp
+            # Log en consola siempre para verificar lectura PT100/PT1000
+            print(f"[PT100] Temp: {temp_actual:.2f} °C  Res: {resistance:.2f} Ω")
 
                 # --- Nueva lógica para etileno ---
                 if window.ethylene_activo:  # Solo si etileno está activo
