@@ -175,13 +175,22 @@ class SerialReader:
                     raw = self.serial_port.readline().decode("utf-8", errors="ignore").strip()
                     if raw:
                         print(f"Trama recibida: {raw}")
-                    parsed = self.parser.parse(raw)
-                    if parsed is None:
+                        self.storage.save_raw_serial_line(raw)
+
+                    parsed_frames = self.parser.feed(raw)
+                    if not parsed_frames:
                         continue
-                    # Actualizar UI
-                    self.ui_update_callback(parsed)
-                    # Guardar en BD
-                    self.storage.save_reading(parsed)
+
+                    for parsed in parsed_frames:
+                        # Guardar en BD siempre, incluso si llega incompleto.
+                        self.storage.save_reading(parsed)
+
+                        # Actualizar UI solo con paquete completo para evitar errores visuales.
+                        required_tags = self.parser.tags
+                        if all(parsed.get(tag) is not None for tag in required_tags):
+                            self.ui_update_callback(parsed)
+                else:
+                    time.sleep(0.05)
             except serial.SerialException as e:
                 print(f"Error serial: {e}")
                 self.serial_port.close()
@@ -606,16 +615,14 @@ class MainWindow(QMainWindow):
                 GPIO.output(18, GPIO.LOW)
                 self.ethylene_activo = True
 
-        
-
-def closeEvent(self, event):
-    """Este método se llama cuando se cierra la ventana."""
-    global stop_threads
-    stop_threads = True  # Indicar a los hilos que deben detenerse
-    motor_stop_event.set()
-    GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitar (activo en LOW)
-    print("Cerrando la aplicación...")
-    event.accept()  # Aceptar el evento de cierre
+    def closeEvent(self, event):
+        """Este método se llama cuando se cierra la ventana."""
+        global stop_threads
+        stop_threads = True  # Indicar a los hilos que deben detenerse
+        motor_stop_event.set()
+        GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitar (activo en LOW)
+        print("Cerrando la aplicación...")
+        event.accept()  # Aceptar el evento de cierre
 
 
 # Función para leer la temperatura del PT100
@@ -635,21 +642,21 @@ def read_pt100():
             print(f"[PT100] Temp: {temp_actual:.2f} °C  Res: {resistance:.2f} Ω")
 
             # --- Nueva lógica para etileno ---
-            if window.ethylene_activo:  # Solo si etileno está activo
-                if temp_actual >= MAX_TEMP_ETHYLENE and window.ethylene_activo:
-                    # Apagar etileno
-                    GPIO.output(23, GPIO.LOW)
-                    GPIO.output(18, GPIO.HIGH)
-                    window.ethylene_activo = False
-                    print(f"⚠️ Etileno apagado por temperatura alta ({temp_actual:.2f} °C)")
+            if temp_actual >= MAX_TEMP_ETHYLENE and window.ethylene_activo:
+                # Apagar etileno
+                GPIO.output(23, GPIO.LOW)
+                GPIO.output(18, GPIO.HIGH)
+                window.ethylene_activo = False
+                print(f"⚠️ Etileno apagado por temperatura alta ({temp_actual:.2f} °C)")
 
-                elif temp_actual <= TEMP_RESTART and window.ethylene_activo:
-                    # Encender etileno nuevamente
-                    GPIO.output(23, GPIO.HIGH)
-                    GPIO.output(18, GPIO.LOW)
-                    window.ethylene_activo = True
-                    print(f"✅ Etileno encendido por temperatura baja ({temp_actual:.2f} °C)")
-                print(f'Temperatura: {temp_actual:.2f} °C, Resistencia: {resistance:.2f} ohms')
+            elif temp_actual <= TEMP_RESTART and not window.ethylene_activo and window.monitoreo:
+                # Encender etileno nuevamente cuando baje la temperatura.
+                GPIO.output(23, GPIO.HIGH)
+                GPIO.output(18, GPIO.LOW)
+                window.ethylene_activo = True
+                print(f"✅ Etileno encendido por temperatura baja ({temp_actual:.2f} °C)")
+
+            print(f'Temperatura: {temp_actual:.2f} °C, Resistencia: {resistance:.2f} ohms')
 
         except Exception as e:
             print(f'Error al leer el sensor PT100: {e}')
