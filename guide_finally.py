@@ -170,28 +170,32 @@ class SerialReader:
         self.ui_update_callback = ui_update_callback
 
     def run(self):
+        last_no_data_log = 0.0
         while not stop_threads:
             try:
-                if self.serial_port.in_waiting > 0:
-                    raw = self.serial_port.readline().decode("utf-8", errors="ignore").strip()
-                    if raw:
-                        print(f"Trama recibida: {raw}")
-                        self.storage.save_raw_serial_line(raw)
+                raw = self.serial_port.readline().decode("utf-8", errors="ignore").strip()
+                if not raw:
+                    now = time.monotonic()
+                    if now - last_no_data_log >= 5:
+                        print("Serial activo: esperando datos...")
+                        last_no_data_log = now
+                    continue
 
-                    parsed_frames = self.parser.feed(raw)
-                    if not parsed_frames:
-                        continue
+                print(f"Trama recibida: {raw}")
+                self.storage.save_raw_serial_line(raw)
 
-                    for parsed in parsed_frames:
-                        # Guardar en BD siempre, incluso si llega incompleto.
-                        self.storage.save_reading(parsed)
+                parsed_frames = self.parser.feed(raw)
+                if not parsed_frames:
+                    continue
 
-                        # Actualizar UI solo con paquete completo para evitar errores visuales.
-                        required_tags = self.parser.tags
-                        if all(parsed.get(tag) is not None for tag in required_tags):
-                            self.ui_update_callback(parsed)
-                else:
-                    time.sleep(0.05)
+                for parsed in parsed_frames:
+                    # Guardar en BD siempre, incluso si llega incompleto.
+                    self.storage.save_reading(parsed)
+
+                    # Actualizar UI solo con paquete completo para evitar errores visuales.
+                    required_tags = self.parser.tags
+                    if all(parsed.get(tag) is not None for tag in required_tags):
+                        self.ui_update_callback(parsed)
             except serial.SerialException as e:
                 print(f"Error serial: {e}")
                 self.serial_port.close()
