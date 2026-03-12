@@ -33,6 +33,7 @@ MOTOR_ENABLE = 19
 GPIO.setup(MOTOR_DIR, GPIO.OUT)
 GPIO.setup(MOTOR_STEP, GPIO.OUT)
 GPIO.setup(MOTOR_ENABLE, GPIO.OUT)
+GPIO.output(MOTOR_DIR, GPIO.HIGH)  # estado inicial solicitado para pin 16
 GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # motor apagado por defecto (activo en LOW)
 STEP_DELAY = 0.000408  # mismo retardo que motor.py
 
@@ -493,6 +494,7 @@ class MainWindow(QMainWindow):
         self.ethylene_activo = False
         motor_stop_event.set()  # detener motor si estaba en marcha
         GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitar (activo en LOW)
+        GPIO.output(MOTOR_DIR, GPIO.HIGH)  # pin 16 en HIGH al apagar ozono
         GPIO.output(12,GPIO.LOW)
         
         #stop etileno
@@ -525,6 +527,7 @@ class MainWindow(QMainWindow):
         if key == 'ozone':
             motor_stop_event.set()  # no debe girar motor en modo ozono
             GPIO.output(12, GPIO.HIGH)
+            GPIO.output(MOTOR_DIR, GPIO.LOW)  # pin 16 en LOW al activar ozono
             GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # deshabilitado (activo en LOW)
             self.ozono_activo = True
         elif key == 'ethylene':
@@ -594,10 +597,12 @@ class MainWindow(QMainWindow):
                 return
             if actual > setpoint and self.ozono_activo:
                 GPIO.output(12, GPIO.LOW)
+                GPIO.output(MOTOR_DIR, GPIO.HIGH)  # pin 16 en HIGH al apagar ozono
                 GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # motor off (activo en LOW)
                 self.ozono_activo = False
             elif actual < setpoint * 0.75 and not self.ozono_activo:
                 GPIO.output(12, GPIO.HIGH)
+                GPIO.output(MOTOR_DIR, GPIO.LOW)  # pin 16 en LOW al reactivar ozono
                 GPIO.output(MOTOR_ENABLE, GPIO.HIGH)  # mantener motor off en ozono
                 self.ozono_activo = True
 
